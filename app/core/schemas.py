@@ -8,3 +8,18 @@ class ChatStreamIn(BaseModel):
     model: str = "gpt-4o-mini"
     system: Optional[str] = None
     metadata: Dict[str, Any] = {}
+
+class ReportIn(BaseModel):
+    schema_id: str
+    query: str
+    model: str = "gpt-4o-mini"
+
+class ImageIn(BaseModel):
+    prompt: str
+    size: str = "1024x1024"
+    transparent: bool = False
+
+class ExportIn(BaseModel):
+    format: str = Field(..., regex="^(md|html|csv|xlsx|pdf)$")
+    content: str
+    title: str
