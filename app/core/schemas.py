@@ -2,6 +2,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 
+
 class ChatStreamIn(BaseModel):
     thread_id: Optional[str] = None
     message: str
@@ -9,17 +10,20 @@ class ChatStreamIn(BaseModel):
     system: Optional[str] = None
     metadata: Dict[str, Any] = {}
 
+
 class ReportIn(BaseModel):
     schema_id: str
     query: str
     model: str = "gpt-4o-mini"
+
 
 class ImageIn(BaseModel):
     prompt: str
     size: str = "1024x1024"
     transparent: bool = False
 
+
 class ExportIn(BaseModel):
-    format: str = Field(..., regex="^(md|html|csv|xlsx|pdf)$")
+    format: str = Field(..., pattern="^(md|html|csv|xlsx|pdf)$")
     content: str
-    title: str
+    title: Optional[str] = None

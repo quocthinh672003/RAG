@@ -8,6 +8,7 @@ from app.core.schemas import ImageIn
 
 router = APIRouter(prefix="/images", tags=["images"])
 
+
 @router.post("/")
 async def generate_image(payload: ImageIn):
     """Generate image using gpt-image-1"""
@@ -15,13 +16,14 @@ async def generate_image(payload: ImageIn):
     try:
         # OpenAI Images API - optimized
         response = await client.images.generate(
-            model="gpt-image-1",
+            # model="gpt-image-1",
+            model="dall-e-3",
             prompt=payload.prompt,
             n=1,
             size=payload.size,
-            quality="standard",
-            style="natural",
-            background="transparent" if payload.transparent else "white"
+            # quality="high",
+            quality="hd",
+            # background="transparent" if payload.transparent else "opaque",
         )
 
         # Download image
@@ -43,14 +45,11 @@ async def generate_image(payload: ImageIn):
             "filename": f"/static/{filename}",
             "prompt": payload.prompt,
             "size": payload.size,
+            "model": "dall-e-3",
         }
     except requests.RequestException as e:
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to download image: {str(e)}"
+            status_code=500, detail=f"Failed to download image: {str(e)}"
         )
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error generating image: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error generating image: {str(e)}")

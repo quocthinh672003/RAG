@@ -8,7 +8,7 @@ from app.core.schemas import ReportIn
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
-#optimized JSON schemas
+# optimized JSON schemas
 SCHEMAS = {
     "summary": {
         "type": "object",
@@ -17,15 +17,12 @@ SCHEMAS = {
             "summary": {"type": "string", "minLength": 50},
             "key_points": {
                 "type": "array",
-                "items": {
-                    "type": "string",
-                    "maxLength": 100
-                }
+                "items": {"type": "string", "maxLength": 100},
             },
             "conclusion": {"type": "string", "minLength": 50},
         },
         "required": ["title", "summary", "key_points", "conclusion"],
-        "additionalProperties": False
+        "additionalProperties": False,
     },
     "analysis": {
         "type": "object",
@@ -33,28 +30,23 @@ SCHEMAS = {
             "topic": {"type": "string", "maxLength": 100},
             "pros": {
                 "type": "array",
-                "items": {
-                    "type": "string",
-                    "maxLength": 100
-                },
+                "items": {"type": "string", "maxLength": 100},
                 "minItems": 1,
-                "maxItems": 10
+                "maxItems": 10,
             },
             "cons": {
                 "type": "array",
-                "items": {
-                    "type": "string",
-                    "maxLength": 100
-                },
+                "items": {"type": "string", "maxLength": 100},
                 "minItems": 1,
-                "maxItems": 10
+                "maxItems": 10,
             },
             "conclusion": {"type": "string", "minLength": 50},
         },
         "required": ["topic", "pros", "cons", "conclusion"],
-        "additionalProperties": False
-    }
+        "additionalProperties": False,
+    },
 }
+
 
 @router.post("/")
 async def create_report(payload: ReportIn):
@@ -63,29 +55,27 @@ async def create_report(payload: ReportIn):
     if payload.schema_id not in SCHEMAS:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid schema_id. Available: {list(SCHEMAS.keys())}"
+            detail=f"Invalid schema_id. Available: {list(SCHEMAS.keys())}",
         )
 
     try:
-        #OpenAI Structured Output - optimized
+        # OpenAI Structured Output - optimized
         response = await client.chat.completions.create(
             model=payload.model,
             messages=[
                 {
                     "role": "system",
-                    "content": f"Generate a {payload.schema_id} report based on the following query: {payload.query}"
+                    "content": f"Generate a {payload.schema_id} report based on the following query: {payload.query}",
                 },
-                {
-                    "role": "user",
-                    "content": payload.query
-                }
+                {"role": "user", "content": payload.query},
             ],
             response_format={
                 "type": "json_schema",
                 "json_schema": {
+                    "name": f"{payload.schema_id}_report",
                     "schema": SCHEMAS[payload.schema_id],
                     "strict": True,
-                }
+                },
             },
             temperature=0.5,
             max_tokens=2000,
@@ -102,10 +92,10 @@ async def create_report(payload: ReportIn):
         filename = f"report_{report_id}.md"
         filepath = f"storage/{filename}"
 
-        os.makedirs("storage", exit_ok=True)
+        os.makedirs("storage", exist_ok=True)
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(markdown_content)
-        
+
         return {
             "report_id": report_id,
             "filename": filename,
@@ -115,43 +105,42 @@ async def create_report(payload: ReportIn):
         }
     except json.JSONDecodeError as e:
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to parse JSON response: {str(e)}"
+            status_code=500, detail=f"Failed to parse JSON response: {str(e)}"
         )
     except Exception as e:
         raise HTTPException(
-            status_code=500,
-            detail=f"Error generating report: {str(e)}"
+            status_code=500, detail=f"Error generating report: {str(e)}"
         )
-    
+
+
 def _render_markdown(json_data: dict, schema_id: str) -> str:
     """Render JSON data to markdown"""
     if schema_id == "summary":
-        return f"""# {data.get("title", "Summary Report")}
+        return f"""# {json_data.get("title", "Summary Report")}
 
 ## Summary
-{data.get('summary', '')}
+{json_data.get("summary", "")}
 
 ## Key Points
-{chr(10).join(f"- {point}" for point in data.get('key_points', []))}
+{chr(10).join(f"- {point}" for point in json_data.get("key_points", []))}
 
 ## Conclusion
-{data.get('conclusion', '')}
+{json_data.get("conclusion", "")}
 
 ---
 *Generated by RAG API - {schema_id.title()} Report*
 """
     elif schema_id == "analysis":
-        return f"""# {data.get("topic", "Analysis Report")}
+        return f"""# {json_data.get("topic", "Analysis Report")}
 
 ## Advantages
-{chr(10).join(f"- {pro}" for pro in data.get('pros', []))}
+{chr(10).join(f"- {pro}" for pro in json_data.get("pros", []))}
 
 ## Disadvantages
-{chr(10).join(f"- {con}" for con in data.get('cons', []))}
+{chr(10).join(f"- {con}" for con in json_data.get("cons", []))}
 
 ## Recommendation
-{data.get('recommendation', '')}
+{json_data.get("recommendation", "")}
 
 ---
 *Generated by RAG API - {schema_id.title()} Report*

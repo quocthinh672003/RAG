@@ -11,3 +11,5 @@ markdown
 pandas
 openpyxl
 requests
+python-dotenv
+reportlab
