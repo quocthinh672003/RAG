@@ -1,1 +1,0 @@
-# file storage adapters (local, s3, Azure)
