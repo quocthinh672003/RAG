@@ -1,36 +1,35 @@
-# GET /threads/:id/messages
-import os
+# GET /threads/:conversation/messages — history via Responses API
 from fastapi import HTTPException, APIRouter
 from app.core.openai_client import client
 
-USE_ASSISTANTS = os.getenv("USE_ASSISTANTS") == "true"
-
 router = APIRouter(prefix="/threads", tags=["threads"])
 
-@router.get("/{thread_id}/messages")
-async def get_messages(thread_id: str, limit: int = 50):
-    #responses API: list follow conversation = thread_id
+
+@router.get("/{conversation_id}/messages")
+async def get_messages(conversation_id: str, limit: int = 50):
     try:
-        responses = await client.responses.list(conversation=thread_id, limit=limit)
+        page = await client.responses.list(conversation=conversation_id, limit=limit)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
     items = []
-    # text from output
-    for r in reversed(getattr(responses, "output", []) or []):
+    for m in reversed(getattr(page, "data", []) or []):
+        role = getattr(m, "role", None) or "assistant"
         text = ""
-        for item in getattr((r, "content", []) or []):
-            for c in getattr((item, "content", []) or []):
-                t = getattr(c, "text", None)
-                if t:
-                    text += t
+        for part in getattr(m, "content", []) or []:
+            value = getattr(getattr(part, "text", None), "value", "")
+            if value:
+                text += value
         if text:
-            items.append({
-                "id": r.id,
-                "role": "assistant",
-                "content": text,
-                "created_at": getattr(r, "created_at", None),
-                "model": getattr(r, "model", None),
-                "metadata": getattr(r, "metadata", None),
-            })
-    return {"thread_id": thread_id, "messages": items}
+            items.append(
+                {
+                    "id": getattr(m, "id", None),
+                    "role": role,
+                    "content": text,
+                    "created_at": getattr(m, "created_at", None),
+                    "model": getattr(m, "model", None),
+                    "metadata": getattr(m, "metadata", None),
+                }
+            )
+
+    return {"conversation_id": conversation_id, "messages": items}

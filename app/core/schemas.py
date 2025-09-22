@@ -7,6 +7,7 @@ class ChatStreamIn(BaseModel):
     message: str
     model: str = "gpt-4o-mini"
     system: Optional[str] = None
+    conversation: Optional[str] = None
     metadata: Dict[str, Any] = {}
 
 
