@@ -9,22 +9,28 @@ router = APIRouter(prefix="/threads", tags=["threads"])
 
 @router.get("/{thread_id}/messages")
 async def get_messages(thread_id: str, limit: int = 50):
-    if not USE_ASSISTANTS:
-        raise HTTPException(status_code=501, detail="Assistants mode disabled. Set USE_ASSISTANTS=true.")
+    #responses API: list follow conversation = thread_id
+    try:
+        responses = await client.responses.list(conversation=thread_id, limit=limit)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-    msgs = await client.beta.threads.messages.list(thread_id=thread_id, limit=limit)
     items = []
-    for m in reversed(msgs.data):
+    # text from output
+    for r in reversed(getattr(responses, "output", []) or []):
         text = ""
-        for part in m.content:
-            if getattr(part, "type", None) == "text":
-                text += part.text.value
-        items.append({
-            "id": m.id,
-            "role": m.role,
-            "content": text,
-            "created_at": m.created_at,
-            "model": None,
-            "metadata": None,
-        })
+        for item in getattr((r, "content", []) or []):
+            for c in getattr((item, "content", []) or []):
+                t = getattr(c, "text", None)
+                if t:
+                    text += t
+        if text:
+            items.append({
+                "id": r.id,
+                "role": "assistant",
+                "content": text,
+                "created_at": getattr(r, "created_at", None),
+                "model": getattr(r, "model", None),
+                "metadata": getattr(r, "metadata", None),
+            })
     return {"thread_id": thread_id, "messages": items}

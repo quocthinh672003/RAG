@@ -60,16 +60,11 @@ async def create_report(payload: ReportIn):
 
     try:
         # OpenAI Structured Output - optimized
-        response = await client.chat.completions.create(
+        response = await client.responses.create(
             model=payload.model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": f"Generate a {payload.schema_id} report based on the following query: {payload.query}",
-                },
-                {"role": "user", "content": payload.query},
-            ],
-            response_format={
+            input=payload.query,
+            instructions=f"Generate a {payload.schema_id} report based on the following query: {payload.query}",
+            text={
                 "type": "json_schema",
                 "json_schema": {
                     "name": f"{payload.schema_id}_report",
@@ -81,9 +76,16 @@ async def create_report(payload: ReportIn):
             max_tokens=2000,
         )
 
-        # Parse and validate JSON
-        json_data = json.loads(response.choices[0].message.content)
-
+        # get text JSON from output
+        #SDK return array output -> content -> text
+        out_text = ""
+        if response.output:
+            for item in response.output:
+                for c in getattr(item, "content", []):
+                    t = getattr(c, "text", None)
+                    if t:
+                        out_text += t
+        json_data = json.loads(out_text)
         # Generate markdown
         markdown_content = _render_markdown(json_data, payload.schema_id)
 
