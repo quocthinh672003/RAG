@@ -7,26 +7,16 @@ from app.core.sse import sse_headers, sse_event
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
-
-async def event_generator_responses(conversation_id: str | None, payload: ChatStreamIn):
-    cid = conversation_id
-    if not cid:
-        try:
-            conv = await client.conversations.create()
-            cid = getattr(conv, "id", None)
-            if cid:
-                yield sse_event({"type": "conversation", "conversation_id": cid})
-        except Exception:
-            cid = None
-
+async def event_generator_responses(payload: ChatStreamIn):
     try:
         request_data = {
             "model": payload.model,
             "input": payload.message,
             "instructions": payload.system or "You are a helpful assistant.",
         }
-        if cid:
-            request_data["conversation"] = cid
+        
+        if payload.previous_response_id:
+            request_data["previous_response_id"] = payload.previous_response_id
 
         # streaming follow docs: use context manager and event.type
         async with client.responses.stream(**request_data) as stream:
@@ -45,24 +35,22 @@ async def event_generator_responses(conversation_id: str | None, payload: ChatSt
                         else "unknown error"
                     )
                     yield sse_event({"type": "error", "message": msg})
-                elif et == "response.completed":
-                    final = await stream.get_final_response()
-                    new_cid = getattr(final, "conversation_id", None)
-                    if new_cid:
-                        yield sse_event(
-                            {"type": "conversation", "conversation_id": new_cid}
-                        )
+
+            # completed: chỉ emit response_id
+            final = await stream.get_final_response()
+            final_text = getattr(final, "output_text", None)
+            if final_text:
+                yield sse_event({"type": "final", "content": final_text})
+
+        yield sse_event({"type": "response", "response_id": getattr(final, "id", None)})
         yield sse_event({"type": "done"})
     except Exception as e:
         yield sse_event({"type": "error", "message": str(e)})
 
-
 @router.post("/stream")
 async def stream_chat(payload: ChatStreamIn):
-    conversations_id = payload.conversation or None
-
     return StreamingResponse(
-        event_generator_responses(conversations_id, payload),
+        event_generator_responses(payload),
         media_type="text/event-stream",
         headers=sse_headers(),
     )

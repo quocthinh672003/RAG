@@ -7,7 +7,7 @@ class ChatStreamIn(BaseModel):
     message: str
     model: str = "gpt-4o-mini"
     system: Optional[str] = None
-    conversation: Optional[str] = None
+    previous_response_id: Optional[str] = None
     metadata: Dict[str, Any] = {}
 
 
@@ -24,6 +24,6 @@ class ImageIn(BaseModel):
 
 
 class ExportIn(BaseModel):
-    format: str = Field(..., pattern="^(md|html|csv|xlsx|pdf)$")
+    format: str = Field(..., pattern="^(md|html|csv|xlsx|pdf|docx|pptx)$")
     content: str
     title: Optional[str] = None

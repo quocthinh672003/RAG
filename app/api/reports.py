@@ -65,11 +65,13 @@ async def create_report(payload: ReportIn):
             input=payload.query,
             instructions=f"Generate a {payload.schema_id} report based on the following query: {payload.query}",
             text={
-                "type": "json_schema",
-                "json_schema": {
-                    "name": f"{payload.schema_id}_report",
-                    "schema": SCHEMAS[payload.schema_id],
-                    "strict": True,
+                "format": {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": f"{payload.schema_id}_report",
+                        "schema": SCHEMAS[payload.schema_id],
+                        "strict": True,
+                    },
                 },
             },
             temperature=0.5,
@@ -78,13 +80,13 @@ async def create_report(payload: ReportIn):
 
         # get text JSON from output
         #SDK return array output -> content -> text
-        out_text = ""
-        if response.output:
+        out_text = getattr(response, "output_text", "") or ""
+        if not out_text and response.output:
             for item in response.output:
                 for c in getattr(item, "content", []):
                     t = getattr(c, "text", None)
                     if t:
-                        out_text += t
+                        out_text += t    
         json_data = json.loads(out_text)
         # Generate markdown
         markdown_content = _render_markdown(json_data, payload.schema_id)
@@ -104,6 +106,7 @@ async def create_report(payload: ReportIn):
             "filepath": filepath,
             "markdown": markdown_content,
             "json": json_data,
+            "response_id": response.id,
         }
     except json.JSONDecodeError as e:
         raise HTTPException(
