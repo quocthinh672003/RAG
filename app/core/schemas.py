@@ -27,3 +27,12 @@ class ExportIn(BaseModel):
     format: str = Field(..., pattern="^(md|html|csv|xlsx|pdf|docx|pptx)$")
     content: str
     title: Optional[str] = None
+
+
+class ChartIn(BaseModel):
+    chart_type: str = Field(..., pattern="^(line|bar|pie|scatter|histogram|heatmap)$")
+    data: str  # JSON string or CSV data
+    title: Optional[str] = None
+    x_label: Optional[str] = None
+    y_label: Optional[str] = None
+    output_format: str = Field(default="png", pattern="^(png|jpg|svg|pdf)$")

@@ -14,3 +14,5 @@ openpyxl
 requests
 python-dotenv
 reportlab
+python-docx
+python-pptx
