@@ -1,6 +1,10 @@
 # POST /export
-import os, uuid, json
-from fastapi import HTTPException, APIRouter
+import os
+import uuid
+import json
+import csv
+import io
+from fastapi import APIRouter
 from app.core.schemas import ExportIn
 from app.core.openai_client import client
 
@@ -8,6 +12,7 @@ router = APIRouter(prefix="/export", tags=["export"])
 
 
 async def _download_openai_file(file_id: str) -> bytes:
+    """Download file from OpenAI"""
     stream = await client.files.content(file_id)
     if hasattr(stream, "aread"):
         return await stream.aread()
@@ -19,33 +24,33 @@ async def _download_openai_file(file_id: str) -> bytes:
 
 
 def _local_generate(fmt: str, content: str, path: str) -> None:
-    """Generate file locally as a safe fallback to avoid empty artifacts."""
+    """Generate file locally as fallback"""
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    
     if fmt == "md":
         with open(path, "w", encoding="utf-8") as f:
             f.write(content or "")
-        return
-    if fmt == "html":
-        html_doc = "<!doctype html><html><head><meta charset='utf-8'><title>Export</title></head><body>" + (content or "") + "</body></html>"
+    
+    elif fmt == "html":
+        html_doc = f"""<!doctype html><html><head><meta charset='utf-8'><title>Export</title></head><body>{content or ""}</body></html>"""
         with open(path, "w", encoding="utf-8") as f:
             f.write(html_doc)
-        return
-    if fmt == "csv":
-        import csv, io
+    
+    elif fmt == "csv":
         with open(path, "w", newline="", encoding="utf-8") as fh:
             writer = csv.writer(fh)
             for line in io.StringIO(content or "").read().strip().splitlines():
                 writer.writerow([p.strip() for p in line.split(',')])
-        return
-    if fmt == "xlsx":
-        import io, pandas as pd
+    
+    elif fmt == "xlsx":
+        import pandas as pd
         rows = []
         for line in io.StringIO(content or "").read().strip().splitlines():
             rows.append([p.strip() for p in line.split(',')])
         df = pd.DataFrame(rows[1:], columns=rows[0] if rows else None)
         df.to_excel(path, index=False)
-        return
-    if fmt == "pdf":
+    
+    elif fmt == "pdf":
         try:
             from reportlab.lib.pagesizes import A4
             from reportlab.pdfgen import canvas
@@ -55,18 +60,20 @@ def _local_generate(fmt: str, content: str, path: str) -> None:
             t = c.beginText(2*cm, h-2*cm)
             for line in (content or "").splitlines():
                 t.textLine(line)
-            c.drawText(t); c.showPage(); c.save()
-            return
+            c.drawText(t)
+            c.showPage()
+            c.save()
         except Exception:
             pass
-    if fmt == "docx":
+    
+    elif fmt == "docx":
         from docx import Document
         doc = Document()
         for line in (content or "").splitlines():
             doc.add_paragraph(line)
         doc.save(path)
-        return
-    if fmt == "pptx":
+    
+    elif fmt == "pptx":
         from pptx import Presentation
         prs = Presentation()
         slide = prs.slides.add_slide(prs.slide_layouts[1])
@@ -75,11 +82,10 @@ def _local_generate(fmt: str, content: str, path: str) -> None:
         for l in (content or "").splitlines()[1:]:
             tf.add_paragraph().text = l
         prs.save(path)
-        return
 
 
 def _collect_output_files(response) -> list:
-    """Collect file artifacts from response (supports both output_file and file content)."""
+    """Collect file artifacts from response"""
     files = []
     for block in (getattr(response, "output", []) or []):
         for c in (getattr(block, "content", []) or []):
@@ -92,19 +98,19 @@ def _collect_output_files(response) -> list:
     return files
 
 
-# _extract_text removed (no longer used)
-
-
 @router.post("/")
 async def export_content(payload: ExportIn):
+    """Export content to various formats"""
+    
     os.makedirs("storage", exist_ok=True)
     export_id = uuid.uuid4().hex[:8]
     fmt = payload.format.lower()
-
+    
     filename = f"export_{export_id}.{fmt}"
     path = os.path.join("storage", filename)
     src = json.dumps(payload.content or "")
-
+    
+    # Code templates for Code Interpreter
     templates = {
         "html": f"""
 SRC = {src}
@@ -159,13 +165,13 @@ for l in (SRC or '').splitlines()[1:]:
 prs.save('{filename}')
 """
     }
-
+    
     code_block = templates.get(fmt, f"""
 SRC = {src}
 with open('{filename}', 'w', encoding='utf-8') as f:
     f.write(SRC)
 """)
-
+    
     instruction = f"""
 Execute this Python code in Code Interpreter.
 Save the file exactly as {filename}.
@@ -175,8 +181,10 @@ Return it as a file artifact (not text, not markdown link).
 {code_block}
 ```
 """.strip()
-    artifacts: list = []
+    
+    artifacts = []
     response = None
+    
     try:
         response = await client.responses.create(
             model="gpt-4.1",
@@ -188,15 +196,15 @@ Return it as a file artifact (not text, not markdown link).
         artifacts = _collect_output_files(response)
     except Exception:
         artifacts = []
-
-    # If CI returned a file, download and return it
+    
+    # If Code Interpreter returned a file, download and return it
     if artifacts:
         picked = next((a for a in artifacts if (a["name"] or "").lower().endswith(f".{fmt}")), artifacts[0])
         blob = await _download_openai_file(picked["id"])
         with open(path, "wb") as fh:
             fh.write(blob)
-
-        # Quick integrity fix for PDF
+        
+        # PDF integrity check
         if fmt == "pdf":
             try:
                 size_ok = os.path.exists(path) and os.path.getsize(path) > 100
@@ -214,21 +222,21 @@ Return it as a file artifact (not text, not markdown link).
                     for line in (payload.content or "").splitlines():
                         t.textLine(line)
                     c.drawText(t)
-                    c.showPage(); c.save()
+                    c.showPage()
+                    c.save()
             except Exception:
                 pass
-
+        
         return {
             "download_url": f"/static/{os.path.basename(path)}",
             "response_id": getattr(response, "id", None),
             "filename": os.path.basename(path),
         }
-
-    # Fallback: generate locally to avoid empty files
+    
+    # Fallback: generate locally
     _local_generate(fmt, payload.content or "", path)
     return {
         "download_url": f"/static/{os.path.basename(path)}",
         "response_id": getattr(response, "id", None),
         "filename": os.path.basename(path),
     }
-

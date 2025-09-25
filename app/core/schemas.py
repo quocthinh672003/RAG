@@ -1,6 +1,6 @@
 # app/core/schemas.py
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 
 
 class ChatStreamIn(BaseModel):
@@ -31,7 +31,7 @@ class ExportIn(BaseModel):
 
 class ChartIn(BaseModel):
     chart_type: str = Field(..., pattern="^(line|bar|pie|scatter|histogram|heatmap)$")
-    data: str  # JSON string or CSV data
+    data: Union[str, List[Any], Dict[str, Any]]
     title: Optional[str] = None
     x_label: Optional[str] = None
     y_label: Optional[str] = None
