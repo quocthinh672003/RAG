@@ -66,7 +66,7 @@ async def create_report(payload: ReportIn):
             instructions=f"Generate a {payload.schema_id} report based on the following query: {payload.query}",
             text={
                 "format": {
-                    "type": "json_schema",
+                    "name": "json_schema",
                     "json_schema": {
                         "name": f"{payload.schema_id}_report",
                         "schema": SCHEMAS[payload.schema_id],
@@ -75,7 +75,6 @@ async def create_report(payload: ReportIn):
                 },
             },
             temperature=0.5,
-            max_tokens=2000,
         )
 
         # get text JSON from output

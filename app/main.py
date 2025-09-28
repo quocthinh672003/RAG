@@ -2,7 +2,7 @@
 import os
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from app.api import chat, threads, images, reports, export
+from app.api import chat, threads, images, reports, export, charts
 
 app = FastAPI(title="RAG API", version="1.0.0")
 
@@ -11,6 +11,7 @@ app.include_router(threads.router)
 app.include_router(images.router)
 app.include_router(reports.router)
 app.include_router(export.router)
+app.include_router(charts.router)
 # Mount static files
 STORAGE_DIR = "storage"
 os.makedirs(STORAGE_DIR, exist_ok=True)
